@@ -1,11 +1,13 @@
 import os
+import json
+import hashlib
 from google.cloud import firestore
 from datetime import datetime, timezone
 import uuid
 
 class EpistemicMemoryBank:
     """
-    Winjay Architecture: Immutable Event Ledger & Hypothesis Ledger.
+    Winjay Architecture: Tamper-Evident Epistemic Ledger & Atomic Idempotency.
     """
     def __init__(self, project_id=None):
         try:
@@ -16,29 +18,41 @@ class EpistemicMemoryBank:
             self.mock_store = {}
             self.mock_events = set()
 
-    def check_idempotency(self, event_id: str) -> bool:
-        """Prevents duplicate hypotheses for the same event."""
+    def check_and_mark_event(self, event_id: str) -> bool:
+        """P2: Atomic Idempotency using Firestore Transactions"""
         if self.db:
-            doc = self.db.collection("events").document(event_id).get()
-            return doc.exists
+            transaction = self.db.transaction()
+            event_ref = self.db.collection("events").document(event_id)
+            
+            @firestore.transactional
+            def atomic_check(transaction, ref):
+                snapshot = ref.get(transaction=transaction)
+                if snapshot.exists:
+                    return False
+                transaction.set(ref, {"received_at": datetime.now(timezone.utc).isoformat()})
+                return True
+                
+            return atomic_check(transaction, event_ref)
         else:
-            return event_id in self.mock_events
-
-    def mark_event_received(self, event_id: str):
-        if self.db:
-            self.db.collection("events").document(event_id).set({"received_at": datetime.now(timezone.utc).isoformat()})
-        else:
+            if event_id in self.mock_events:
+                return False
             self.mock_events.add(event_id)
+            return True
 
     def log_hypothesis(self, event_id: str, hypothesis_data) -> str:
         h_id = f"H-{uuid.uuid4().hex[:8]}"
+        
+        # P4: Tamper-Evident Hash Chain Initialization
+        initial_hash = hashlib.sha256(b"INIT").hexdigest()
+        
         data = {
             "hypothesis_id": h_id,
             "event_id": event_id,
             "hypothesis": hypothesis_data.hypothesis,
             "falsification_contract": hypothesis_data.falsification_contract.model_dump(),
             "current_status": "RESEARCHING",
-            "belief_history": [],  # IMMUTABLE AUDIT TRAIL
+            "belief_history": [],
+            "latest_hash": initial_hash,
             "evidence_ledger": [],
             "created_at": datetime.now(timezone.utc).isoformat()
         }
@@ -60,7 +74,7 @@ class EpistemicMemoryBank:
                 self.mock_store[h_id]["evidence_ledger"].extend(evidence_items)
 
     def append_belief_state(self, h_id: str, status: str, confidence: float, reason: str):
-        """Append to belief history, do not overwrite past epistemic states."""
+        """P4: Tamper-Evident Append-Only History (Hash Chain)"""
         snapshot = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "status": status,
@@ -70,11 +84,32 @@ class EpistemicMemoryBank:
         
         if self.db:
             doc_ref = self.db.collection("hypothesis_ledger").document(h_id)
+            doc = doc_ref.get().to_dict()
+            previous_hash = doc.get("latest_hash", hashlib.sha256(b"INIT").hexdigest())
+            
+            # Generate new hash = SHA256(previous_hash + snapshot_json)
+            payload = previous_hash + json.dumps(snapshot, sort_keys=True)
+            new_hash = hashlib.sha256(payload.encode()).hexdigest()
+            
+            snapshot["previous_hash"] = previous_hash
+            snapshot["hash"] = new_hash
+            
             doc_ref.update({
                 "current_status": status,
+                "latest_hash": new_hash,
                 "belief_history": firestore.ArrayUnion([snapshot])
             })
         else:
             if h_id in self.mock_store:
+                doc = self.mock_store[h_id]
+                previous_hash = doc.get("latest_hash", hashlib.sha256(b"INIT").hexdigest())
+                
+                payload = previous_hash + json.dumps(snapshot, sort_keys=True)
+                new_hash = hashlib.sha256(payload.encode()).hexdigest()
+                
+                snapshot["previous_hash"] = previous_hash
+                snapshot["hash"] = new_hash
+                
                 self.mock_store[h_id]["current_status"] = status
+                self.mock_store[h_id]["latest_hash"] = new_hash
                 self.mock_store[h_id]["belief_history"].append(snapshot)
