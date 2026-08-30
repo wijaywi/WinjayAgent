@@ -1,17 +1,17 @@
 # 🚀 Winjay OS: Agent Reliability Infrastructure
-> *"LLMs propose. Evidence decides."*
+> *"The agents propose. The environment provides evidence. The policy engine decides."*
 
 **Hackathon Track:** Fortified Enterprise Fleet (All Things Agentic Hackathon)
 
 ## 📌 The Vision
 Most AI agents today operate on a primitive `User Request -> LLM -> Output` loop. They act as chatbots that blindly agree with the user. In an enterprise environment, an agent that hallucinates false confidence is dangerous. 
 
-**Winjay** transforms "Agent Intelligence" into **Agent Reliability Infrastructure**. We replace the chatbot model with a strict **Epistemic Architecture**:
+**Winjay** transforms "Agent Intelligence" into a **production-inspired reliability architecture**. We replace the chatbot model with a strict **Epistemic Architecture**:
 - **Falsification Contracts:** Instead of just guessing, the Researcher Agent must define exactly *what would disprove* its hypothesis.
-- **Independent Evidence Scoring:** The Falsifier Agent attacks the hypothesis and produces structured, scored evidence (-3 to +3).
-- **Deterministic Belief Engine:** We stripped the LLM of its authority to make final decisions. A deterministic policy engine calculates the final epistemic confidence based on the evidence ledger. 
-- **Immutable Audit Trail:** Uses Google Firestore as a *Hypothesis Ledger* to track belief history securely without overwriting past states.
-- **Failure-Awareness:** If an API fails, Winjay escalates. It *never* fabricates evidence.
+- **Real Deterministic Evidence:** We don't trust LLM hallucinations for evidence. Falsifiers propose an investigation, but actual Python Adapters (e.g., Code Inspector) run the checks and output deterministic scores (-3 to +3).
+- **Deterministic Belief Engine:** We stripped the LLM of its authority to make final decisions. A deterministic policy engine calculates the final epistemic confidence based on the true evidence ledger. 
+- **Tamper-Evident Epistemic Ledger:** Uses Google Firestore with Cryptographic Hash Chaining (`previous_hash` + payload = `new_hash`). It creates an unalterable, tamper-evident audit trail of the system's shifting beliefs.
+- **Atomic Idempotency & Authenticated Webhooks:** Firestore Transactions prevent race-conditions, and HMAC-SHA256 signatures prevent prompt injection via webhooks.
 
 ---
 
@@ -28,16 +28,20 @@ flowchart TD
 
     %% Nodes
     Trigger["⚙️ Environment Delta (e.g., Code Commit)"]
-    API["🌐 Event Gateway & Idempotency<br/>(FastAPI)"]:::gcp
+    API["🌐 HMAC Authenticated Gateway<br/>+ Atomic Idempotency"]:::gcp
 
     subgraph Agentic Reasoning
         R["🕵️ Researcher Agent<br/>(Outputs Falsification Contract)"]:::gemini
-        F["🛡️ Falsifier Agent<br/>(Outputs Scored Evidence)"]:::gemini
+        F["🛡️ Falsifier Agent<br/>(Proposes Investigation)"]:::gemini
+    end
+
+    subgraph Deterministic Environment
+        ADA["🔌 Code Inspector Adapter<br/>(Extracts Real Evidence)"]:::engine
+        BE["⚙️ Deterministic Belief Engine<br/>(Calculates Final State)"]:::engine
     end
 
     subgraph Core Infrastructure
-        DB[("🗄️ Immutable Hypothesis Ledger<br/>(Google Firestore)")]:::db
-        BE["⚙️ Deterministic Belief Engine<br/>(Policy Engine)"]:::engine
+        DB[("🗄️ Tamper-Evident Epistemic Ledger<br/>(Firestore Hash Chain)")]:::db
     end
 
     subgraph Human-on-the-loop
@@ -48,17 +52,17 @@ flowchart TD
     end
 
     %% Flow
-    Trigger -->|Webhook Event| API
-    API -->|1. Idempotency Check| DB
+    Trigger -->|X-Hub-Signature-256| API
+    API -->|1. Atomic Check| DB
     API -->|2. Generate Hypothesis| R
     
     R -->|Log Hypothesis & Contract| DB
     R -->|Passes Contract| F
     
-    F -->|3. Attacks Hypothesis| DB
-    F -->|Passes Structured Evidence| BE
+    F -->|3. Proposes Attack| ADA
+    ADA -->|4. Generates Real Scored Evidence| BE
     
-    BE -->|4. Calculates Deterministic Score| DB
+    BE -->|5. Calculates Deterministic Score| DB
     BE --> Eval
     
     Eval -->|> 0.8 or < 0.2| ActionAuto
@@ -71,8 +75,8 @@ flowchart TD
 ## 🛠️ Tech Stack
 - **AI Model:** Gemini 3.5 Flash (via Google AI Studio)
 - **Framework:** FastAPI (Python)
-- **Database (Memory Bank):** Google Cloud Firestore (Immutable Audit Trail)
-- **Governance:** Deterministic Belief Engine (Custom Python Policy)
+- **Database (Memory Bank):** Google Cloud Firestore (Tamper-Evident Hash Chain)
+- **Governance:** Deterministic Policy Adapters
 
 ---
 
@@ -114,4 +118,4 @@ $body = @{
 Invoke-RestMethod -Uri "http://127.0.0.1:8080/webhook/environment-delta" -Method Post -Body $body -ContentType "application/json"
 ```
 
-Observe the system reject LLM hallucination and deterministically calculate the epistemic score!
+Observe the system reject LLM hallucination and deterministically calculate the epistemic score based on real evidence!
