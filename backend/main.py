@@ -1,18 +1,17 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import uvicorn
 from agents.researcher import ResearcherAgent
 from agents.falsifier import FalsifierAgent
-from agents.verifier import VerifierAgent
+from engine.policy import DeterministicBeliefEngine
 from memory.firestore_client import EpistemicMemoryBank
 
-app = FastAPI(title="Winjay Agent Reliability Infrastructure")
+app = FastAPI(title="Winjay OS - Agent Reliability Infrastructure")
 
 # Initialize Systems
 memory_bank = EpistemicMemoryBank()
 researcher = ResearcherAgent()
 falsifier = FalsifierAgent()
-verifier = VerifierAgent()
 
 class DeltaEvent(BaseModel):
     repository: str
@@ -21,51 +20,66 @@ class DeltaEvent(BaseModel):
 
 @app.post("/webhook/environment-delta")
 async def process_delta(event: DeltaEvent):
-    """
-    Winjay Concept: Agents wake up based on Environment Deltas, not cron jobs.
-    """
-    print(f"[*] Received Environment Delta for {event.repository} (Commit: {event.commit_id})")
+    # 1. Idempotency Check & Event Deduplication
+    event_id = f"github:{event.repository}:{event.commit_id}"
+    if memory_bank.check_idempotency(event_id):
+        return {"status": "SKIPPED", "reason": "Event already processed. Preventing duplicate hypothesis."}
     
-    # 1. Researcher generates Hypothesis
-    research_result = researcher.process_delta(event.dict())
+    memory_bank.mark_event_received(event_id)
+    print(f"[*] Received Environment Delta: {event_id}")
     
-    # 2. Log to Epistemic Memory
-    h_id = memory_bank.log_hypothesis(research_result.hypothesis, event.dict())
-    print(f"[+] Researcher Hypothesis Logged: {h_id}")
-    
-    # 3. Falsifier attempts to destroy the hypothesis
-    falsify_result = falsifier.attempt_falsification(
-        hypothesis=research_result.hypothesis,
-        assumptions=research_result.assumptions
-    )
-    
-    # 4. Log Counter-Evidence
-    memory_bank.add_falsifier_evidence(h_id, falsify_result.counter_evidence)
-    print(f"[-] Falsifier Counter-Evidence Added.")
-    
-    # 5. Verifier updates Belief State
-    verify_result = verifier.verify_belief(
-        hypothesis=research_result.hypothesis,
-        counter_evidence=falsify_result.counter_evidence,
-        falsifier_confidence=falsify_result.falsification_confidence
-    )
-    
-    # 6. Commit final belief
-    memory_bank.update_belief_state(
-        h_id=h_id,
-        new_confidence=verify_result.final_belief_confidence,
-        status=verify_result.status,
-        reasoning=verify_result.reasoning
-    )
-    
-    print(f"[*] Final Belief State for {h_id}: {verify_result.status} (Confidence: {verify_result.final_belief_confidence})")
-    
-    return {
-        "hypothesis_id": h_id,
-        "status": verify_result.status,
-        "confidence": verify_result.final_belief_confidence,
-        "reasoning": verify_result.reasoning
-    }
+    try:
+        # 2. Researcher generates Hypothesis & Falsification Contract
+        research_result = researcher.process_delta(event.model_dump())
+        
+        # 3. Log to Epistemic Memory Bank (Immutable Setup)
+        h_id = memory_bank.log_hypothesis(event_id, research_result)
+        print(f"[+] Hypothesis Logged with Contract: {h_id}")
+        
+        # 4. Falsifier attempts to destroy the hypothesis based on the Contract
+        falsify_result = falsifier.attempt_falsification(
+            hypothesis=research_result.hypothesis,
+            contract=research_result.falsification_contract.model_dump(),
+            delta_info=event.model_dump()
+        )
+        
+        # 5. Log Structured Evidence
+        evidence_items = [item.model_dump() for item in falsify_result.evidence_ledger]
+        memory_bank.add_evidence(h_id, evidence_items)
+        print(f"[-] Evidence Ledger updated with {len(evidence_items)} items.")
+        
+        # 6. Deterministic Belief Engine (LLM does not have authority here)
+        decision = DeterministicBeliefEngine.evaluate(evidence_items)
+        
+        # 7. Commit final belief to the Immutable Audit Trail
+        memory_bank.append_belief_state(
+            h_id=h_id,
+            status=decision["status"],
+            confidence=decision["confidence"],
+            reason=decision["reason"]
+        )
+        
+        print(f"[*] Belief Engine Decision: {decision['status']} (Confidence: {decision['confidence']})")
+        
+        return {
+            "event_id": event_id,
+            "hypothesis_id": h_id,
+            "final_status": decision["status"],
+            "confidence": decision["confidence"],
+            "reasoning": decision["reason"],
+            "evidence_ledger_size": len(evidence_items)
+        }
+        
+    except Exception as e:
+        # ABSOLUTELY NO FABRICATED FALLBACKS.
+        # Failures map to an explicit UNKNOWN / FAILURE state for the Human-on-the-loop.
+        print(f"[!] Critical System Failure during Agent execution: {str(e)}")
+        return {
+            "event_id": event_id,
+            "status": "AGENT_FAILURE",
+            "reason": str(e),
+            "action_required": "SYSTEM_ESCALATION_REQUIRED"
+        }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
