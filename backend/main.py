@@ -35,6 +35,13 @@ def verify_signature(payload: bytes, signature: str):
     if not hmac.compare_digest(f"sha256={expected}", signature):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
+@app.get("/")
+async def root_index():
+    return {
+        "status": "online",
+        "message": "Winjay OS Agent is active. Please run the provided Python script to POST payloads to /webhook/environment-delta"
+    }
+
 @app.post("/webhook/environment-delta")
 async def process_delta(event: DeltaEvent, request: Request, x_hub_signature_256: str = Header(None)):
     env = os.getenv("ENVIRONMENT", "development")
