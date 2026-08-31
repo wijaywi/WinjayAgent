@@ -2,7 +2,7 @@
   <img src="assets/logo.png" alt="Winjay Agent Logo" width="300"/>
 </p>
 
-# 🚀 Winjay OS: Agent Reliability Infrastructure
+# 🚀 Winjay Agent : Agent Reliability Infrastructure
 > *"The agents propose. The environment provides evidence. The policy engine decides."*
 
 **Hackathon Track:** Fortified Enterprise Fleet (All Things Agentic Hackathon)
