@@ -10,13 +10,19 @@ class EpistemicMemoryBank:
     Winjay Architecture: Tamper-Evident Epistemic Ledger & Atomic Idempotency.
     """
     def __init__(self, project_id=None):
+        environment = os.getenv("ENVIRONMENT", "development")
         try:
             self.db = firestore.Client(project=project_id)
-        except Exception as e:
-            print(f"Warning: Firestore initialization failed. Running volatile memory fallback. Error: {e}")
-            self.db = None 
             self.mock_store = {}
             self.mock_events = set()
+        except Exception as e:
+            if environment == "production":
+                raise RuntimeError(f"CRITICAL: Firestore is required in production but failed to initialize. Error: {e}")
+            else:
+                print(f"Warning: Firestore initialization failed. Running volatile memory fallback for DEV mode. Error: {e}")
+                self.db = None 
+                self.mock_store = {}
+                self.mock_events = set()
 
     def check_and_mark_event(self, event_id: str) -> bool:
         """P2: Atomic Idempotency using Firestore Transactions"""
@@ -41,10 +47,7 @@ class EpistemicMemoryBank:
 
     def log_hypothesis(self, event_id: str, hypothesis_data) -> str:
         h_id = f"H-{uuid.uuid4().hex[:8]}"
-        
-        # P4: Tamper-Evident Hash Chain Initialization
         initial_hash = hashlib.sha256(b"INIT").hexdigest()
-        
         data = {
             "hypothesis_id": h_id,
             "event_id": event_id,
@@ -87,7 +90,6 @@ class EpistemicMemoryBank:
             doc = doc_ref.get().to_dict()
             previous_hash = doc.get("latest_hash", hashlib.sha256(b"INIT").hexdigest())
             
-            # Generate new hash = SHA256(previous_hash + snapshot_json)
             payload = previous_hash + json.dumps(snapshot, sort_keys=True)
             new_hash = hashlib.sha256(payload.encode()).hexdigest()
             

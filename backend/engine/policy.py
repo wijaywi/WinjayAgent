@@ -9,7 +9,14 @@ class DeterministicBeliefEngine:
         if not evidence_ledger:
             return {"status": "INSUFFICIENT_EVIDENCE", "confidence": 0.0, "reason": "No evidence provided."}
             
-        total_score = sum(item.get("score", 0) for item in evidence_ledger)
+        total_score = 0
+        for item in evidence_ledger:
+            # P0 INTEGRITY INVARIANT:
+            provenance = item.get("provenance", {})
+            if provenance.get("source") != "deterministic_adapter":
+                raise RuntimeError("ARCHITECTURAL INVARIANT VIOLATION: Evidence Item lacks deterministic adapter provenance. LLM-generated evidence detected.")
+            
+            total_score += item.get("score", 0)
         
         # Map score to epistemic confidence (0.0 to 1.0)
         # 0 score = 0.5 (neutral/uncertain)
