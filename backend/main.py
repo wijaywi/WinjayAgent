@@ -35,12 +35,33 @@ def verify_signature(payload: bytes, signature: str):
     if not hmac.compare_digest(f"sha256={expected}", signature):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-@app.get("/")
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
 async def root_index():
-    return {
-        "status": "online",
-        "message": "Winjay OS Agent is active. Please run the provided Python script to POST payloads to /webhook/environment-delta"
-    }
+    return """
+    <html>
+        <head>
+            <title>Winjay OS Agent</title>
+            <style>
+                body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f0f2f5; }
+                img { max-width: 250px; margin-bottom: 20px; }
+                .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: inline-block; }
+                h2 { color: #333; }
+                p { color: #555; line-height: 1.6; }
+                code { background: #eee; padding: 4px 8px; border-radius: 4px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <img src="https://raw.githubusercontent.com/wijaywi/WinjayAgent/main/assets/logo.png" alt="Winjay Agent Logo" />
+                <h2>Winjay OS Agent is Active</h2>
+                <p>Status: <strong style="color: #0F9D58;">Online</strong></p>
+                <p>Please run the provided Python testing script to send a secure payload<br/>to <code>/webhook/environment-delta</code></p>
+            </div>
+        </body>
+    </html>
+    """
 
 @app.post("/webhook/environment-delta")
 async def process_delta(event: DeltaEvent, request: Request, x_hub_signature_256: str = Header(None)):
