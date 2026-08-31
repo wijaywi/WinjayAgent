@@ -45,6 +45,14 @@ class EpistemicMemoryBank:
             self.mock_events.add(event_id)
             return True
 
+    def clear_event(self, event_id: str):
+        """Allows retry of failed events."""
+        if self.db:
+            self.db.collection("events").document(event_id).delete()
+        else:
+            if event_id in self.mock_events:
+                self.mock_events.remove(event_id)
+
     def log_hypothesis(self, event_id: str, hypothesis_data) -> str:
         h_id = f"H-{uuid.uuid4().hex[:8]}"
         initial_hash = hashlib.sha256(b"INIT").hexdigest()
@@ -90,7 +98,9 @@ class EpistemicMemoryBank:
             doc = doc_ref.get().to_dict()
             previous_hash = doc.get("latest_hash", hashlib.sha256(b"INIT").hexdigest())
             
-            payload = previous_hash + json.dumps(snapshot, sort_keys=True)
+            # Incorporate evidence ledger into hash chain to prevent undetected evidence tampering
+            evidence_str = json.dumps(doc.get("evidence_ledger", []), sort_keys=True)
+            payload = previous_hash + json.dumps(snapshot, sort_keys=True) + evidence_str
             new_hash = hashlib.sha256(payload.encode()).hexdigest()
             
             snapshot["previous_hash"] = previous_hash
@@ -106,7 +116,8 @@ class EpistemicMemoryBank:
                 doc = self.mock_store[h_id]
                 previous_hash = doc.get("latest_hash", hashlib.sha256(b"INIT").hexdigest())
                 
-                payload = previous_hash + json.dumps(snapshot, sort_keys=True)
+                evidence_str = json.dumps(doc.get("evidence_ledger", []), sort_keys=True)
+                payload = previous_hash + json.dumps(snapshot, sort_keys=True) + evidence_str
                 new_hash = hashlib.sha256(payload.encode()).hexdigest()
                 
                 snapshot["previous_hash"] = previous_hash

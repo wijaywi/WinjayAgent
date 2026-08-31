@@ -16,10 +16,12 @@ memory_bank = EpistemicMemoryBank()
 researcher = ResearcherAgent()
 falsifier = FalsifierAgent()
 
+from pydantic import BaseModel, Field
+
 class DeltaEvent(BaseModel):
-    repository: str
-    commit_id: str
-    changes: str
+    repository: str = Field(..., max_length=150)
+    commit_id: str = Field(..., max_length=40)
+    changes: str = Field(..., max_length=100000)
 
 def verify_signature(payload: bytes, signature: str):
     """P3: Validates the HMAC signature to prevent unauthenticated access."""
@@ -124,7 +126,10 @@ async def process_delta(event: DeltaEvent, request: Request, x_hub_signature_256
         
     except Exception as e:
         print(f"[!] System Failure: {str(e)}")
-        return {"status": "AGENT_FAILURE", "reason": str(e), "action_required": "SYSTEM_ESCALATION"}
+        # Revert event idempotency so it can be retried safely
+        memory_bank.clear_event(event_id)
+        # Prevent internal exception leakage to the caller (P2)
+        return {"status": "AGENT_FAILURE", "reason": "Internal processing error", "action_required": "SYSTEM_ESCALATION"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)

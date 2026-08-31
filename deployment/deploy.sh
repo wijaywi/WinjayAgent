@@ -16,6 +16,6 @@ gcloud run deploy $SERVICE_NAME \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated \
-  --set-env-vars="GEMINI_API_KEY=YOUR_API_KEY_HERE"
+  --set-env-vars="ENVIRONMENT=production,GEMINI_API_KEY=YOUR_API_KEY_HERE,WEBHOOK_SECRET=YOUR_SECURE_WEBHOOK_SECRET"
 
-echo "Deployment complete! Your agent is ready to receive Environment Deltas."
+echo "Deployment complete! Ensure you set the real secrets in Cloud Run dashboard."

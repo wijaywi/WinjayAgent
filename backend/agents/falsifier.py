@@ -4,13 +4,15 @@ import os
 
 client = genai.Client()
 
+from typing import Literal
+
 class InvestigationTarget(BaseModel):
-    target: str = Field(description="The specific file, component, or configuration to investigate.")
-    investigation_type: str = Field(description="The type of deterministic check to run, e.g., 'keyword_search', 'regex_match'.")
-    parameters: dict[str, str] = Field(description="Parameters for the adapter, e.g., {'search_term': 'JWT'}.")
+    target: str = Field(..., max_length=100, description="The specific file, component, or configuration to investigate.")
+    investigation_type: Literal["keyword_search"] = Field(..., description="The type of deterministic check to run.")
+    parameters: dict[str, str] = Field(..., description="Parameters for the adapter, e.g., {'search_term': 'JWT'}.")
 
 class InvestigationProposal(BaseModel):
-    investigations: list[InvestigationTarget]
+    investigations: list[InvestigationTarget] = Field(..., max_length=10)
 
 class FalsifierAgent:
     """
