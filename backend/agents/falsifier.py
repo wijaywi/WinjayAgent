@@ -1,9 +1,6 @@
 from google import genai
 from pydantic import BaseModel, Field
 import os
-
-client = genai.Client()
-
 from typing import Literal
 
 class InvestigationTarget(BaseModel):
@@ -21,8 +18,15 @@ class FalsifierAgent:
     """
     def __init__(self):
         self.model_name = os.getenv("MODEL_NAME", "gemini-3.5-flash")
+        try:
+            self.client = genai.Client()
+        except ValueError:
+            self.client = None
 
     def attempt_falsification(self, hypothesis: str, contract: dict, delta_info: dict) -> InvestigationProposal:
+        if not self.client:
+            raise RuntimeError("GEMINI_API_KEY is missing. Falsifier agent cannot operate.")
+        
         prompt = f"""
         You are the Falsifier Agent. Your explicit goal is to attack the hypothesis based on its Falsification Contract.
         
@@ -43,7 +47,7 @@ class FalsifierAgent:
         </UNTRUSTED_ENVIRONMENT_DATA>
         """
         
-        response = client.models.generate_content(
+        response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
             config={

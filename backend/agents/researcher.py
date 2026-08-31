@@ -2,8 +2,6 @@ from google import genai
 from pydantic import BaseModel, Field
 import os
 
-client = genai.Client()
-
 class FalsificationContract(BaseModel):
     what_must_be_true: list[str] = Field(description="Assumptions required for this hypothesis to be true.")
     what_would_disprove_it: list[str] = Field(description="Specific findings that would completely falsify this hypothesis.")
@@ -19,8 +17,15 @@ class ResearcherAgent:
     """
     def __init__(self):
         self.model_name = os.getenv("MODEL_NAME", "gemini-3.5-flash")
+        try:
+            self.client = genai.Client()
+        except ValueError:
+            self.client = None
 
     def process_delta(self, delta_info: dict) -> ResearchHypothesis:
+        if not self.client:
+            raise RuntimeError("GEMINI_API_KEY is missing. Researcher agent cannot operate.")
+        
         prompt = f"""
         You are an advanced Security Researcher Agent.
         Analyze the following Environment Delta.
@@ -35,7 +40,7 @@ class ResearcherAgent:
         </UNTRUSTED_ENVIRONMENT_DATA>
         """
         
-        response = client.models.generate_content(
+        response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
             config={
