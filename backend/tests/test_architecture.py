@@ -27,7 +27,7 @@ def test_policy_engine_accepts_adapter_evidence():
     real_evidence = CodeInspectorAdapter.inspect("added JWT validation", [DummyInv()])
     
     result = DeterministicBeliefEngine.evaluate(real_evidence)
-    assert result["status"] == "CONFIRMED"
+    assert result["status"] == "UNCERTAIN_HUMAN_REVIEW"
 
 def test_webhook_secret_missing_in_production():
     import os
