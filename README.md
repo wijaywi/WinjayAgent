@@ -5,7 +5,7 @@
 # 🚀 Winjay Agent : Agent Reliability Infrastructure
 > *"The agents propose. The environment provides evidence. The policy engine decides."*
 
-**Hackathon Track:** Fortified Enterprise Fleet (All Things Agentic Hackathon)
+** Track:** Fortified Enterprise Fleet (All Things Agentic)
 
 ## 📌 The Vision
 Most AI agents today operate on a primitive `User Request -> LLM -> Output` loop. They act as chatbots that blindly agree with the user. In an enterprise environment, an agent that hallucinates false confidence is dangerous. 
